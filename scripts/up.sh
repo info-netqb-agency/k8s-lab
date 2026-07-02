@@ -22,4 +22,11 @@ log "labeling control-plane node ingress-ready=true"
 kubectl --context "${KUBE_CONTEXT}" label node "${CLUSTER_NAME}-control-plane" \
   ingress-ready=true --overwrite >/dev/null
 kubectl config use-context "${KUBE_CONTEXT}" >/dev/null
+
+# Manual-start-only: kind defaults the node containers to on-failure, which can
+# auto-start the whole cluster on Docker/host restart. Force 'no' so the cluster
+# only runs when you explicitly 'make up' / 'make start'.
+log "disabling node auto-start (restart=no)"
+# shellcheck disable=SC2046
+docker update --restart=no $(kind get nodes --name "${CLUSTER_NAME}") >/dev/null
 ok "cluster ready; kube-context set to ${KUBE_CONTEXT}"

@@ -201,6 +201,10 @@ make reset                  # delete + recreate from scratch
 Docker/host restarts until `make start`. `make down` deletes the cluster
 entirely. Use `stop`/`start` to park the cluster when you're not using it.
 
+**Manual start only:** the cluster's node containers are set to `restart=no`
+(applied by `make up`), so the cluster **never auto-starts** when Docker Desktop
+or Windows restarts — it comes up only when you run `make up` / `make start`.
+
 `make down` destroys everything cleanly; `make up` recreates it identically from
 `kind-config.yaml`. The installed CLIs in `~/.local/bin` are left in place.
 
