@@ -14,6 +14,7 @@ Everything is pinned to exact versions:
 | helm             | `v4.2.2`                                                             |
 | kubectl          | `v1.34.1`                                                            |
 | ingress-nginx    | `controller-v1.15.1` (vendored kind manifest)                       |
+| metrics-server   | chart `3.13.1` / app `v0.8.1` (optional usage metrics)              |
 | demo app         | `hashicorp/http-echo:0.2.3`                                          |
 | dashboard        | Headlamp chart `0.43.0` (optional web UI)                            |
 
@@ -101,6 +102,20 @@ If a tool on your machine doesn't resolve `*.localhost`, add to your hosts file:
 
 ---
 
+## Usage metrics (metrics-server)
+
+To get CPU/memory usage (`kubectl top` and the graphs in Headlamp):
+
+```bash
+make metrics                # or: ./lab metrics
+kubectl top nodes
+kubectl top pods -A
+```
+
+kind's kubelets use self-signed serving certs, so metrics-server is configured
+with `--kubelet-insecure-tls` (see `metrics/values.yaml`) — appropriate for a
+local lab, not for production. First readings appear ~15–30s after install.
+
 ## Web dashboard (Headlamp)
 
 You can administer the cluster from a browser instead of the CLI. `make dashboard`
@@ -152,11 +167,13 @@ k8s-lab/
 ├── dashboard/                  # Headlamp web UI (values + cluster-admin identity)
 │   ├── values.yaml
 │   └── admin.yaml
+├── metrics/
+│   └── values.yaml             # metrics-server (kind-friendly --kubelet-insecure-tls)
 ├── scripts/                    # the real logic — single source of truth
 │   ├── lib.sh                  # pinned versions + shared helpers/installers
 │   ├── install-tools.sh
 │   ├── up.sh  down.sh  reset.sh  status.sh
-│   ├── ingress.sh
+│   ├── ingress.sh  metrics.sh
 │   ├── deploy-hello.sh  undeploy-hello.sh
 │   └── dashboard.sh  dashboard-token.sh  undeploy-dashboard.sh
 └── charts/hello/               # minimal Helm chart (Deployment/Service/Ingress)

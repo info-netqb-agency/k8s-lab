@@ -1,0 +1,8 @@
+# metrics-server values for k8s-lab.
+#
+# kind's kubelets serve their metrics over TLS with self-signed certs that
+# metrics-server can't verify, so out of the box it stays NotReady. On a local
+# lab it's fine to skip that verification — that's what --kubelet-insecure-tls
+# does. (Do NOT use this flag on a production cluster.)
+args:
+  - --kubelet-insecure-tls

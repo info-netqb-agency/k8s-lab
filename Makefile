@@ -3,7 +3,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install-tools up down reset status ingress deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard versions
+.PHONY: help install-tools up down reset status ingress metrics deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard versions
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -26,6 +26,9 @@ status: ## Show nodes (-o wide) and all pods
 
 ingress: ## Install ingress-nginx and wait until ready
 	@bash scripts/ingress.sh
+
+metrics: ## Install metrics-server (enables kubectl top + Headlamp usage graphs)
+	@bash scripts/metrics.sh
 
 deploy-hello: ## Deploy the hello Helm chart
 	@bash scripts/deploy-hello.sh

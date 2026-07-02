@@ -12,6 +12,7 @@ case "${target}" in
   reset)          bash "${HERE}/scripts/reset.sh" ;;
   status)         bash "${HERE}/scripts/status.sh" ;;
   ingress)        bash "${HERE}/scripts/ingress.sh" ;;
+  metrics)        bash "${HERE}/scripts/metrics.sh" ;;
   deploy-hello)   bash "${HERE}/scripts/deploy-hello.sh" ;;
   undeploy-hello) bash "${HERE}/scripts/undeploy-hello.sh" ;;
   dashboard)          bash "${HERE}/scripts/dashboard.sh" ;;
@@ -27,6 +28,7 @@ k8s-lab — run: ./lab <target>
   reset            down then up
   status           nodes -o wide + pods -A
   ingress          install ingress-nginx and wait until ready
+  metrics          install metrics-server (kubectl top + Headlamp graphs)
   deploy-hello     deploy the hello Helm chart
   undeploy-hello   remove the hello Helm chart
   dashboard        install Headlamp web UI at dashboard.localhost + print token

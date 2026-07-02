@@ -24,6 +24,11 @@ HEADLAMP_CHART_VERSION="0.43.0"
 DASHBOARD_NS="headlamp"
 DASHBOARD_HOST="dashboard.localhost"
 
+# metrics-server (enables `kubectl top` + Headlamp CPU/memory graphs)
+METRICS_REPO="https://kubernetes-sigs.github.io/metrics-server/"
+METRICS_CHART_VERSION="3.13.1"   # app v0.8.1
+METRICS_NS="kube-system"
+
 # ----------------------------------------------------------------------------
 # Paths
 # ----------------------------------------------------------------------------
