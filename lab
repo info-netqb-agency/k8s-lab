@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Sudo-free, make-free task runner. Usage: ./lab <target>
+# Provides the exact same targets as the Makefile for machines without `make`.
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+target="${1:-help}"
+
+case "${target}" in
+  install-tools)  bash "${HERE}/scripts/install-tools.sh" ;;
+  up)             bash "${HERE}/scripts/up.sh" ;;
+  down)           bash "${HERE}/scripts/down.sh" ;;
+  reset)          bash "${HERE}/scripts/reset.sh" ;;
+  status)         bash "${HERE}/scripts/status.sh" ;;
+  ingress)        bash "${HERE}/scripts/ingress.sh" ;;
+  deploy-hello)   bash "${HERE}/scripts/deploy-hello.sh" ;;
+  undeploy-hello) bash "${HERE}/scripts/undeploy-hello.sh" ;;
+  versions)       bash -c "source '${HERE}/scripts/lib.sh'; print_versions" ;;
+  help|-h|--help|*)
+    cat <<'EOF'
+k8s-lab — run: ./lab <target>
+  install-tools    install kind/helm/kubectl if missing + print versions
+  up               create the 4-node kind cluster
+  down             delete the cluster
+  reset            down then up
+  status           nodes -o wide + pods -A
+  ingress          install ingress-nginx and wait until ready
+  deploy-hello     deploy the hello Helm chart
+  undeploy-hello   remove the hello Helm chart
+  versions         print installed tool versions
+EOF
+    ;;
+esac

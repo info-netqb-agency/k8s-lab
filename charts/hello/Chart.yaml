@@ -1,0 +1,8 @@
+apiVersion: v2
+name: hello
+description: Minimal demo web app for k8s-lab — http-echo behind ingress-nginx, reachable at http://hello.localhost
+type: application
+# Chart version — bump when the templates change.
+version: 0.1.0
+# Version of the app being deployed (the http-echo image tag).
+appVersion: "0.2.3"

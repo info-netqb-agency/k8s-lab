@@ -1,0 +1,33 @@
+# Default values for the hello chart. Override with `helm ... --set key=value`.
+
+replicaCount: 2
+
+image:
+  repository: hashicorp/http-echo
+  tag: "0.2.3"
+  pullPolicy: IfNotPresent
+
+# Text the app returns on every request — handy for proving ingress routing.
+echoText: "Hello from k8s-lab"
+# Port http-echo listens on (its default).
+containerPort: 5678
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: hello.localhost
+  path: /
+  pathType: Prefix
+
+# Tiny footprint so 3 workers stay comfortable.
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

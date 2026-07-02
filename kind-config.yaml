@@ -1,0 +1,33 @@
+# kind cluster definition for k8s-lab — fully reproducible.
+#
+# 4 nodes: 1 control-plane + 3 workers.
+# The node image is pinned to an exact Kubernetes version AND digest so that
+# `kind create` produces a byte-identical node image on any machine.
+#
+#   Node image : kindest/node:v1.34.8  (ships with kind v0.32.0)
+#   Why v1.34.x: matches the installed kubectl v1.34.x (kubectl supports only
+#                +/-1 minor version skew vs the API server).
+#
+# The control-plane publishes 80/443 to localhost via extraPortMappings so that
+# the ingress-nginx controller (pinned to this node by the ingress-ready label)
+# is reachable from the host browser at http://<host>:80 / :443.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: k8s-lab
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+    # Publish the ingress ports from this node to the host loopback.
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+  - role: worker
+    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+  - role: worker
+    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+  - role: worker
+    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256

@@ -1,0 +1,24 @@
+# --- Tool binaries -----------------------------------------------------------
+# kind/helm/kubectl install to ~/.local/bin, never into the repo. If you ever
+# drop binaries here, keep them out of version control:
+/bin/
+/.local/
+
+# --- Kube / Helm local state -------------------------------------------------
+kubeconfig
+*.kubeconfig
+charts/**/charts/          # fetched chart dependencies
+charts/**/*.tgz            # packaged charts
+
+# --- Editor / OS cruft -------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# --- Logs & scratch ----------------------------------------------------------
+*.log
+tmp/
+scratch/
