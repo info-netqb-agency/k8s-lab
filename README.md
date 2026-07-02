@@ -190,9 +190,16 @@ single-user local lab — remove that env in `ai/docker-compose.yml` to enable a
 make undeploy-hello         # remove just the demo app
 make undeploy-dashboard     # remove the Headlamp dashboard
 make ai-down                # stop the local AI stack (models kept)
+make stop                   # stop the cluster but KEEP it (state preserved)
+make start                  # start a previously stopped cluster
 make down                   # delete the whole cluster
 make reset                  # delete + recreate from scratch
 ```
+
+**Stop vs down:** `make stop` halts the node containers without deleting them
+(via `docker stop`), so all cluster state is preserved and it stays down across
+Docker/host restarts until `make start`. `make down` deletes the cluster
+entirely. Use `stop`/`start` to park the cluster when you're not using it.
 
 `make down` destroys everything cleanly; `make up` recreates it identically from
 `kind-config.yaml`. The installed CLIs in `~/.local/bin` are left in place.

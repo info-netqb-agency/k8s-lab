@@ -3,7 +3,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install-tools up down reset status ingress metrics deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
+.PHONY: help install-tools up down stop start reset status ingress metrics deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -17,6 +17,12 @@ up: ## Create the 4-node kind cluster from kind-config.yaml
 
 down: ## Delete the kind cluster
 	@bash scripts/down.sh
+
+stop: ## Stop the cluster's nodes without deleting it (state preserved)
+	@bash scripts/stop.sh
+
+start: ## Start a previously stopped cluster and wait until Ready
+	@bash scripts/start.sh
 
 reset: ## Delete then recreate the cluster
 	@bash scripts/reset.sh

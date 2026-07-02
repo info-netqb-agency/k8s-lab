@@ -9,6 +9,8 @@ case "${target}" in
   install-tools)  bash "${HERE}/scripts/install-tools.sh" ;;
   up)             bash "${HERE}/scripts/up.sh" ;;
   down)           bash "${HERE}/scripts/down.sh" ;;
+  stop)           bash "${HERE}/scripts/stop.sh" ;;
+  start)          bash "${HERE}/scripts/start.sh" ;;
   reset)          bash "${HERE}/scripts/reset.sh" ;;
   status)         bash "${HERE}/scripts/status.sh" ;;
   ingress)        bash "${HERE}/scripts/ingress.sh" ;;
@@ -30,6 +32,8 @@ k8s-lab — run: ./lab <target>
   install-tools    install kind/helm/kubectl if missing + print versions
   up               create the 4-node kind cluster
   down             delete the cluster
+  stop             stop the cluster's nodes without deleting (state kept)
+  start            start a previously stopped cluster
   reset            down then up
   status           nodes -o wide + pods -A
   ingress          install ingress-nginx and wait until ready
