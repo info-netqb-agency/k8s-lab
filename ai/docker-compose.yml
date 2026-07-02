@@ -1,0 +1,45 @@
+# Local AI stack for the k8s-lab box — runs on Docker (NOT in the kind cluster)
+# so it can use the NVIDIA GPU directly via Docker's nvidia runtime.
+#
+#   ollama      - model server, GPU-accelerated, API on :11434
+#   open-webui  - ChatGPT-style web UI on http://localhost:3000
+#
+# Models are stored in the named `ollama` volume, so they survive `down`/`up`.
+name: k8s-lab-ai
+
+services:
+  ollama:
+    image: ollama/ollama:0.31.1
+    container_name: k8s-lab-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"      # Ollama REST API (also usable from other tools)
+    volumes:
+      - ollama:/root/.ollama
+    # Give the container the GPU (requires Docker's nvidia runtime, already present).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.10.2
+    container_name: k8s-lab-open-webui
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "3000:8080"        # -> http://localhost:3000
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      # Single-user local lab: skip the login/signup wall. Remove to enable auth.
+      - WEBUI_AUTH=false
+    volumes:
+      - open-webui:/app/backend/data
+
+volumes:
+  ollama:
+  open-webui:

@@ -17,6 +17,7 @@ Everything is pinned to exact versions:
 | metrics-server   | chart `3.13.1` / app `v0.8.1` (optional usage metrics)              |
 | demo app         | `hashicorp/http-echo:0.2.3`                                          |
 | dashboard        | Headlamp chart `0.43.0` (optional web UI)                            |
+| local AI (opt.)  | `ollama/ollama:0.31.1` + `open-webui:v0.10.2` (Docker + GPU)         |
 
 ---
 
@@ -150,11 +151,45 @@ local lab; don't reuse that binding on a real cluster.
 > just point it at `~/.kube/config`) both work without installing anything in the
 > cluster.
 
+## Local AI (Ollama + Open WebUI, GPU)
+
+Run local LLMs on the box's **NVIDIA GPU**. This stack runs on **Docker directly**
+(not inside kind) so it can use the GPU via Docker's nvidia runtime — kind's node
+containers can't see the GPU without extra device-plugin plumbing.
+
+```bash
+make ai-up                      # or: ./lab ai-up   -> starts Ollama + Open WebUI
+make ai-pull                    # pull the default model (llama3.2:3b)
+make ai-pull MODEL=qwen2.5:3b   # ...or any Ollama model
+```
+
+Then open **http://localhost:3000** (Open WebUI) and pick the model, or hit the
+API directly:
+
+```bash
+curl http://localhost:11434/api/generate \
+  -d '{"model":"llama3.2:3b","prompt":"hello","stream":false}'
+```
+
+Inspect / stop:
+
+```bash
+make ai-status                  # containers + downloaded models + GPU usage
+make ai-down                    # stop (downloaded models are kept in a volume)
+```
+
+**GPU sizing:** a 4 GB card (e.g. Quadro T2000) runs a 3B model fully on-GPU
+(~40+ tok/s). 7–8B models spill to CPU and get slower; stick to ~3B for snappy
+local chat. Models live in the `k8s-lab-ai_ollama` Docker volume and persist
+across `ai-down`/`ai-up`. Open WebUI runs with `WEBUI_AUTH=false` (no login) for a
+single-user local lab — remove that env in `ai/docker-compose.yml` to enable auth.
+
 ## Tear it all down
 
 ```bash
 make undeploy-hello         # remove just the demo app
 make undeploy-dashboard     # remove the Headlamp dashboard
+make ai-down                # stop the local AI stack (models kept)
 make down                   # delete the whole cluster
 make reset                  # delete + recreate from scratch
 ```
@@ -178,13 +213,16 @@ k8s-lab/
 │   └── admin.yaml
 ├── metrics/
 │   └── values.yaml             # metrics-server (kind-friendly --kubelet-insecure-tls)
+├── ai/
+│   └── docker-compose.yml      # Ollama + Open WebUI on Docker with GPU (optional)
 ├── scripts/                    # the real logic — single source of truth
 │   ├── lib.sh                  # pinned versions + shared helpers/installers
 │   ├── install-tools.sh
 │   ├── up.sh  down.sh  reset.sh  status.sh
 │   ├── ingress.sh  metrics.sh
 │   ├── deploy-hello.sh  undeploy-hello.sh
-│   └── dashboard.sh  dashboard-token.sh  undeploy-dashboard.sh
+│   ├── dashboard.sh  dashboard-token.sh  undeploy-dashboard.sh
+│   └── ai.sh                   # Ollama + Open WebUI stack control
 └── charts/hello/               # minimal Helm chart (Deployment/Service/Ingress)
 ```
 

@@ -18,6 +18,11 @@ case "${target}" in
   dashboard)          bash "${HERE}/scripts/dashboard.sh" ;;
   dashboard-token)    bash "${HERE}/scripts/dashboard-token.sh" ;;
   undeploy-dashboard) bash "${HERE}/scripts/undeploy-dashboard.sh" ;;
+  ai-up)          bash "${HERE}/scripts/ai.sh" up ;;
+  ai-down)        bash "${HERE}/scripts/ai.sh" down ;;
+  ai-pull)        bash "${HERE}/scripts/ai.sh" pull "${2:-}" ;;
+  ai-status)      bash "${HERE}/scripts/ai.sh" status ;;
+  ai-logs)        bash "${HERE}/scripts/ai.sh" logs ;;
   versions)       bash -c "source '${HERE}/scripts/lib.sh'; print_versions" ;;
   help|-h|--help|*)
     cat <<'EOF'
@@ -34,6 +39,11 @@ k8s-lab — run: ./lab <target>
   dashboard        install Headlamp web UI at dashboard.localhost + print token
   dashboard-token  print a fresh 24h Headlamp login token
   undeploy-dashboard  remove the Headlamp web UI
+  ai-up            start local AI (Ollama + Open WebUI, GPU) at localhost:3000
+  ai-down          stop the local AI stack (models kept)
+  ai-pull [MODEL]  pull an Ollama model (default llama3.2:3b)
+  ai-status        AI containers + models + GPU usage
+  ai-logs          tail the AI stack logs
   versions         print installed tool versions
 EOF
     ;;

@@ -3,7 +3,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install-tools up down reset status ingress metrics deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard versions
+.PHONY: help install-tools up down reset status ingress metrics deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -44,6 +44,21 @@ dashboard-token: ## Print a fresh 24h Headlamp login token
 
 undeploy-dashboard: ## Remove the Headlamp web UI
 	@bash scripts/undeploy-dashboard.sh
+
+ai-up: ## Start the local AI stack (Ollama + Open WebUI, Docker + GPU) at localhost:3000
+	@bash scripts/ai.sh up
+
+ai-down: ## Stop the local AI stack (models are kept)
+	@bash scripts/ai.sh down
+
+ai-pull: ## Pull an Ollama model (default llama3.2:3b; override with MODEL=...)
+	@bash scripts/ai.sh pull $(MODEL)
+
+ai-status: ## Show AI containers, downloaded models, and GPU usage
+	@bash scripts/ai.sh status
+
+ai-logs: ## Tail the AI stack logs
+	@bash scripts/ai.sh logs
 
 versions: ## Print installed tool versions
 	@bash -c 'source scripts/lib.sh; print_versions'
