@@ -18,6 +18,12 @@ NODE_IMAGE="kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294
 INGRESS_MANIFEST="manifests/ingress-nginx-kind.yaml"   # vendored, controller-v1.15.1
 KUBE_CONTEXT="kind-${CLUSTER_NAME}"
 
+# Headlamp web dashboard (installed via upstream Helm chart, exposed via ingress)
+HEADLAMP_REPO="https://kubernetes-sigs.github.io/headlamp/"
+HEADLAMP_CHART_VERSION="0.43.0"
+DASHBOARD_NS="headlamp"
+DASHBOARD_HOST="dashboard.localhost"
+
 # ----------------------------------------------------------------------------
 # Paths
 # ----------------------------------------------------------------------------

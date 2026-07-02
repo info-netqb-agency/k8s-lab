@@ -1,0 +1,16 @@
+# Headlamp values for k8s-lab — a web UI reachable at http://dashboard.localhost
+# via the same ingress-nginx controller that serves the hello demo.
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: dashboard.localhost
+      paths:
+        - path: /
+          type: Prefix

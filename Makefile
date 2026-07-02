@@ -3,7 +3,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install-tools up down reset status ingress deploy-hello undeploy-hello versions
+.PHONY: help install-tools up down reset status ingress deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard versions
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -32,6 +32,15 @@ deploy-hello: ## Deploy the hello Helm chart
 
 undeploy-hello: ## Remove the hello Helm chart
 	@bash scripts/undeploy-hello.sh
+
+dashboard: ## Install the Headlamp web UI at http://dashboard.localhost + print a login token
+	@bash scripts/dashboard.sh
+
+dashboard-token: ## Print a fresh 24h Headlamp login token
+	@bash scripts/dashboard-token.sh
+
+undeploy-dashboard: ## Remove the Headlamp web UI
+	@bash scripts/undeploy-dashboard.sh
 
 versions: ## Print installed tool versions
 	@bash -c 'source scripts/lib.sh; print_versions'

@@ -15,6 +15,7 @@ Everything is pinned to exact versions:
 | kubectl          | `v1.34.1`                                                            |
 | ingress-nginx    | `controller-v1.15.1` (vendored kind manifest)                       |
 | demo app         | `hashicorp/http-echo:0.2.3`                                          |
+| dashboard        | Headlamp chart `0.43.0` (optional web UI)                            |
 
 ---
 
@@ -100,10 +101,36 @@ If a tool on your machine doesn't resolve `*.localhost`, add to your hosts file:
 
 ---
 
+## Web dashboard (Headlamp)
+
+You can administer the cluster from a browser instead of the CLI. `make dashboard`
+installs [Headlamp](https://headlamp.dev) via Helm and exposes it through the same
+ingress at **http://dashboard.localhost**:
+
+```bash
+make dashboard              # or: ./lab dashboard
+```
+
+It prints a 24-hour login token at the end. Open **http://dashboard.localhost**,
+choose token auth, and paste it. Reprint a token any time:
+
+```bash
+make dashboard-token        # or: ./lab dashboard-token
+```
+
+Remove it with `make undeploy-dashboard`. The login identity is a
+`cluster-admin`-bound ServiceAccount (`dashboard/admin.yaml`) — convenient for a
+local lab; don't reuse that binding on a real cluster.
+
+> Prefer a terminal UI or a desktop app? `k9s` (TUI) and Lens/OpenLens (desktop,
+> just point it at `~/.kube/config`) both work without installing anything in the
+> cluster.
+
 ## Tear it all down
 
 ```bash
 make undeploy-hello         # remove just the demo app
+make undeploy-dashboard     # remove the Headlamp dashboard
 make down                   # delete the whole cluster
 make reset                  # delete + recreate from scratch
 ```
@@ -122,12 +149,16 @@ k8s-lab/
 ├── lab                         # same targets without make (./lab <target>)
 ├── manifests/
 │   └── ingress-nginx-kind.yaml # vendored ingress-nginx (controller-v1.15.1)
+├── dashboard/                  # Headlamp web UI (values + cluster-admin identity)
+│   ├── values.yaml
+│   └── admin.yaml
 ├── scripts/                    # the real logic — single source of truth
 │   ├── lib.sh                  # pinned versions + shared helpers/installers
 │   ├── install-tools.sh
 │   ├── up.sh  down.sh  reset.sh  status.sh
 │   ├── ingress.sh
-│   └── deploy-hello.sh  undeploy-hello.sh
+│   ├── deploy-hello.sh  undeploy-hello.sh
+│   └── dashboard.sh  dashboard-token.sh  undeploy-dashboard.sh
 └── charts/hello/               # minimal Helm chart (Deployment/Service/Ingress)
 ```
 

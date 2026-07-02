@@ -1,0 +1,22 @@
+# Login identity for Headlamp. Headlamp authenticates with a Kubernetes
+# ServiceAccount bearer token; this SA is bound to cluster-admin so you can
+# see and edit everything. Fine for a local throwaway lab — do NOT copy this
+# cluster-admin binding to a real cluster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-admin
+  namespace: headlamp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-admin
+    namespace: headlamp
