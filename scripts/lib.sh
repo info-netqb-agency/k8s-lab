@@ -13,8 +13,8 @@ export PATH="${HOME}/.local/bin:${PATH}"
 CLUSTER_NAME="k8s-lab"
 KIND_VERSION="v0.32.0"
 HELM_VERSION="v4.2.2"
-KUBECTL_VERSION="v1.34.1"
-NODE_IMAGE="kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256"
+KUBECTL_VERSION="v1.36.1"
+NODE_IMAGE="kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
 INGRESS_MANIFEST="manifests/ingress-nginx-kind.yaml"   # vendored, controller-v1.15.1
 KUBE_CONTEXT="kind-${CLUSTER_NAME}"
 
@@ -69,13 +69,17 @@ require_docker() {
 ensure_bindir() { mkdir -p "${BIN_DIR}"; }
 
 ensure_kubectl() {
-  if have kubectl; then ok "kubectl present ($(kubectl version --client 2>/dev/null | head -1))"; return; fi
+  # Match the pinned version (so a differently-versioned system kubectl gets
+  # superseded by one in ~/.local/bin, which is earlier on PATH).
+  if have kubectl && kubectl version --client 2>/dev/null | grep -q "${KUBECTL_VERSION}"; then
+    ok "kubectl present ($(kubectl version --client 2>/dev/null | head -1))"; return
+  fi
   local os arch; read -r os arch <<<"$(os_arch)"
   log "installing kubectl ${KUBECTL_VERSION} -> ${BIN_DIR}"
   ensure_bindir
   curl -fsSL -o "${BIN_DIR}/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${os}/${arch}/kubectl"
   chmod +x "${BIN_DIR}/kubectl"
-  ok "kubectl installed"
+  ok "kubectl installed ($(kubectl version --client 2>/dev/null | head -1))"
 }
 
 ensure_kind() {

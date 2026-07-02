@@ -10,9 +10,9 @@ Everything is pinned to exact versions:
 | Component        | Pin                                                                 |
 | ---------------- | ------------------------------------------------------------------- |
 | kind (CLI)       | `v0.32.0`                                                            |
-| Kubernetes nodes | `kindest/node:v1.34.8` (digest-pinned)                              |
+| Kubernetes nodes | `kindest/node:v1.36.1` (digest-pinned)                              |
 | helm             | `v4.2.2`                                                             |
-| kubectl          | `v1.34.1`                                                            |
+| kubectl          | `v1.36.1`                                                            |
 | ingress-nginx    | `controller-v1.15.1` (vendored kind manifest)                       |
 | metrics-server   | chart `3.13.1` / app `v0.8.1` (optional usage metrics)              |
 | demo app         | `hashicorp/http-echo:0.2.3`                                          |
@@ -28,6 +28,15 @@ Everything is pinned to exact versions:
   `helm` are installed automatically if missing — into `~/.local/bin`, **no sudo**.
 - Recommended: **≥ 4 GB** RAM allocated to Docker for 4 nodes (this repo was
   built against 16 GB — check with `docker info --format '{{.MemTotal}}'`).
+- **cgroup v2 is required** — Kubernetes ≥ 1.35 refuses to start on cgroup v1.
+  Check with `docker info --format '{{.CgroupVersion}}'` (must print `2`).
+  If it prints `1`, create `%USERPROFILE%\.wslconfig` with:
+  ```ini
+  [wsl2]
+  kernelCommandLine = cgroup_no_v1=all
+  ```
+  then run `wsl --shutdown` and restart Docker Desktop. (A copy of this file
+  lives at `docs/wslconfig-cgroupv2.txt` in this repo.)
 
 > **`make` is optional.** If `make` isn't installed, use the bundled `./lab`
 > dispatcher — every `make <target>` below has an identical `./lab <target>`.

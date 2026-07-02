@@ -4,9 +4,9 @@
 # The node image is pinned to an exact Kubernetes version AND digest so that
 # `kind create` produces a byte-identical node image on any machine.
 #
-#   Node image : kindest/node:v1.34.8  (ships with kind v0.32.0)
-#   Why v1.34.x: matches the installed kubectl v1.34.x (kubectl supports only
-#                +/-1 minor version skew vs the API server).
+#   Node image : kindest/node:v1.36.1  (newest image shipped with kind v0.32.0)
+#   kubectl    : pinned to v1.36.1 to match (kubectl supports only +/-1 minor
+#                version skew vs the API server — keep them on the same minor).
 #
 # The control-plane publishes 80/443 to localhost via extraPortMappings so that
 # the ingress-nginx controller (pinned to this node by the ingress-ready label)
@@ -16,7 +16,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: k8s-lab
 nodes:
   - role: control-plane
-    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
     # Publish the ingress ports from this node to the host loopback.
     extraPortMappings:
       - containerPort: 80
@@ -26,8 +26,8 @@ nodes:
         hostPort: 443
         protocol: TCP
   - role: worker
-    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
   - role: worker
-    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
   - role: worker
-    image: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5

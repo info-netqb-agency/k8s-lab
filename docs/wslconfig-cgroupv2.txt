@@ -1,0 +1,26 @@
+Kubernetes >= 1.35 (kubelet) refuses to start on a host using cgroup v1.
+Docker Desktop's WSL2 VM defaults to cgroup v1 on some setups, which makes
+`kind create` fail with:
+
+    failed to validate kubelet configuration, error: kubelet is configured to
+    not run on a host using cgroup v1.
+
+Fix (one-time, host-level): copy the block below into
+
+    %USERPROFILE%\.wslconfig      (e.g. C:\Users\<you>\.wslconfig)
+
+then apply it with:
+
+    wsl --shutdown
+    # restart Docker Desktop
+
+Verify with:  docker info --format '{{.CgroupVersion}}'   ->  should print 2
+
+------------------------------ .wslconfig ------------------------------
+[wsl2]
+# Force the WSL2 kernel to expose a unified cgroup v2 hierarchy.
+kernelCommandLine = cgroup_no_v1=all
+------------------------------------------------------------------------
+
+Note: this switches ALL Docker containers in the WSL2 VM to cgroup v2 and
+restarts the VM (all running containers stop). That's expected.
