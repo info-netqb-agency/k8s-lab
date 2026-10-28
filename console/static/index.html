@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="console-token" content="__TOKEN__">
+<title>k8s-lab Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a control rail on the left, live cluster views on the right, log at the bottom.
+   Indigo = Terraform-owned, amber = Git-owned, green/amber/red = health only. */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --sunken: #e6ebf1; --ink: #0f1a2b; --ink-2: #4a586b; --line: #d3dae3;
+  --tf: #4b3fd1; --tf-soft: #e6e4fa; --tf-ink: #ffffff; --git: #b4540a; --git-soft: #fbe9d6;
+  --ok: #178046; --ok-soft: #dcf2e6; --warn: #a85d00; --warn-soft: #fbecd0; --bad: #c0302b; --bad-soft: #fbe0de; --dim: #8693a5;
+  --term-bg: #0b1320; --term-fg: #d7e0ec; --term-dim: #7a8ca3;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1019; --surface: #111b2b; --sunken: #0c1422; --ink: #e6ecf5; --ink-2: #9dacc0; --line: #243348;
+    --tf: #9d94ff; --tf-soft: #1f1b48; --tf-ink: #0a1019; --git: #f0a15c; --git-soft: #38230f;
+    --ok: #4cc28a; --ok-soft: #123525; --warn: #f0b04c; --warn-soft: #3a2a0c; --bad: #ff7b74; --bad-soft: #3d1816; --dim: #66768c;
+    --term-bg: #060b13; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--font-body); }
+button, input, select { font: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); }
+.label { font: 500 0.7rem/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+
+/* top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 1.15rem var(--font-display); }
+.brand svg { width: 28px; height: 28px; }
+.brand small { font: 500 0.7rem var(--font-mono); color: var(--ink-2); letter-spacing: .1em; text-transform: uppercase; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 8px; font: 500 0.78rem var(--font-mono); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunken); white-space: nowrap; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.pill.ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); } .pill.ok .dot { background: var(--ok); }
+.pill.warn { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); } .pill.warn .dot { background: var(--warn); }
+.pill.bad { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); } .pill.bad .dot { background: var(--bad); }
+.pill.live .dot { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+.copychip { cursor: pointer; border: 1px solid var(--line); background: var(--sunken); border-radius: 6px; padding: 6px 10px; font: 400 0.78rem var(--font-mono); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copychip:hover, .copychip:focus-visible { border-color: var(--tf); outline: none; }
+
+/* page grid */
+.page { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 24px; padding: 24px; max-width: 1500px; margin: 0 auto; align-items: start; }
+@media (max-width: 960px) { .page { grid-template-columns: minmax(0, 1fr); padding: 16px; } .rail { position: static !important; } }
+.rail { position: sticky; top: 76px; display: grid; gap: 16px; }
+.main { display: grid; gap: 20px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; min-width: 0; }
+.card > h2 { margin: 0 0 14px; font: 700 1.05rem var(--font-display); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.card > h2 .label { font-weight: 500; }
+
+/* actions */
+.group + .group { margin-top: 18px; }
+.group > .label { display: block; margin-bottom: 8px; }
+.acts { display: grid; gap: 8px; }
+.act { display: grid; gap: 2px; text-align: left; padding: 11px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--sunken); cursor: pointer; transition: border-color .15s, transform .05s; }
+.act .t { font-weight: 600; }
+.act .d { font-size: 0.78rem; color: var(--ink-2); }
+.act:hover:not(:disabled), .act:focus-visible { border-color: var(--tf); outline: none; }
+.act:active:not(:disabled) { transform: translateY(1px); }
+.act:disabled { opacity: .45; cursor: not-allowed; }
+.act.primary { background: var(--tf); border-color: var(--tf); color: var(--tf-ink); }
+.act.primary .d { color: inherit; opacity: .85; }
+.act.danger:hover:not(:disabled), .act.danger.armed { border-color: var(--bad); background: var(--bad-soft); }
+.act.danger.armed .t { color: var(--bad); }
+.act.caution.armed { border-color: var(--warn); background: var(--warn-soft); }
+.act.caution.armed .t { color: var(--warn); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.form { display: grid; gap: 8px; }
+.form input { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font: 400 0.82rem var(--font-mono); }
+.form input:focus-visible { outline: 2px solid var(--git); outline-offset: 1px; }
+.btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--sunken); cursor: pointer; font-weight: 500; }
+.btn:hover:not(:disabled), .btn:focus-visible { border-color: var(--git); outline: none; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.hint { font-size: 0.78rem; color: var(--ink-2); }
+.msg { font-size: 0.8rem; min-height: 1.2em; }
+.msg.bad { color: var(--bad); } .msg.ok { color: var(--ok); }
+
+/* summary stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.stat b { display: block; font: 700 1.7rem/1.1 var(--font-display); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.stat small { color: var(--ink-2); font-size: 0.8rem; }
+.stat.ok b { color: var(--ok); } .stat.warn b { color: var(--warn); } .stat.bad b { color: var(--bad); }
+
+/* topology */
+.nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.node { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--sunken); min-width: 0; }
+.node.cp { border-color: var(--tf); }
+.node header { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 8px; }
+.node h3 { margin: 0; font: 600 0.95rem var(--font-mono); overflow-wrap: anywhere; }
+.node .meta { font: 400 0.72rem var(--font-mono); color: var(--ink-2); margin-top: 2px; }
+.badge { font: 500 0.66rem var(--font-mono); padding: 3px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .06em; border: 1px solid; white-space: nowrap; }
+.badge.cp { color: var(--tf); border-color: var(--tf); background: var(--tf-soft); }
+.badge.w { color: var(--ink-2); border-color: var(--line); }
+.meters { display: grid; gap: 8px; margin: 14px 0; }
+.meter { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; font: 400 0.72rem var(--font-mono); color: var(--ink-2); }
+.bar { height: 7px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--tf); border-radius: 4px; transition: width .5s; }
+.dots { display: flex; flex-wrap: wrap; gap: 5px; }
+.pd { width: 14px; height: 14px; border-radius: 4px; background: var(--ok); cursor: default; }
+.pd.warn { background: var(--warn); } .pd.bad { background: var(--bad); } .pd.dim { background: var(--dim); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; font-size: 0.78rem; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* components */
+.comps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.comp { border: 1px solid var(--line); border-top: 4px solid var(--tf); border-radius: 10px; padding: 12px 14px; background: var(--surface); min-width: 0; }
+.comp.git { border-top-color: var(--git); }
+.comp b { font-weight: 600; display: block; }
+.comp .v { font: 400 0.72rem var(--font-mono); color: var(--ink-2); }
+.comp .n { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; font: 500 0.82rem var(--font-mono); }
+
+/* two column */
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.kv { display: grid; gap: 4px; margin: 0 0 14px; }
+.kv:last-child { margin-bottom: 0; }
+.kv .u { font: 500 0.9rem var(--font-mono); overflow-wrap: anywhere; }
+.kv a { color: var(--tf); }
+.app { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--sunken); display: grid; gap: 10px; }
+.app .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.app .head b { font: 700 1.05rem var(--font-display); }
+.app .repo { font: 400 0.76rem var(--font-mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.app .err { font: 400 0.76rem var(--font-mono); color: var(--bad); overflow-wrap: anywhere; }
+.secret { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.secret code { font: 500 0.85rem var(--font-mono); background: var(--sunken); padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line); overflow-wrap: anywhere; }
+.empty { text-align: center; padding: 30px 12px; color: var(--ink-2); }
+.empty b { display: block; font: 700 1.1rem var(--font-display); color: var(--ink); margin-bottom: 6px; }
+
+/* console */
+.term { background: var(--term-bg); color: var(--term-fg); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+.term header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px; border-bottom: 1px solid #ffffff1c; font: 400 0.78rem var(--font-mono); color: var(--term-dim); }
+.term header b { color: var(--term-fg); font-weight: 500; }
+.term pre { margin: 0; padding: 14px 16px; height: 340px; overflow: auto; font: 400 0.78rem/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.term .c { color: #8aa4ff; } .term .g { color: #6fdca5; } .term .r { color: #ff8d86; } .term .y { color: #f3c36b; } .term .d { color: var(--term-dim); }
+.term .btn { background: transparent; border-color: #ffffff40; color: var(--term-fg); padding: 4px 10px; font-size: 0.75rem; }
+
+/* pods */
+.tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tools input, .tools select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-size: 0.85rem; }
+.tscroll { overflow: auto; max-height: 380px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; min-width: 640px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--sunken); font: 500 0.68rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+td.m { font-family: var(--font-mono); font-size: 0.78rem; }
+.sp { font: 500 0.7rem var(--font-mono); padding: 2px 8px; border-radius: 999px; }
+.sp.ok { background: var(--ok-soft); color: var(--ok); } .sp.warn { background: var(--warn-soft); color: var(--warn); }
+.sp.bad { background: var(--bad-soft); color: var(--bad); } .sp.dim { background: var(--sunken); color: var(--ink-2); }
+:focus-visible { outline: 2px solid var(--tf); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14L16 30 4 23V9z" fill="none" stroke="var(--tf)" stroke-width="2.4" stroke-linejoin="round"/><circle cx="16" cy="16" r="4" fill="var(--git)"/></svg>
+    <div>k8s-lab<br><small>Console</small></div>
+  </div>
+  <span id="clusterPill" class="pill"><span class="dot"></span><span id="clusterText">connecting</span></span>
+  <span class="spacer"></span>
+  <button class="copychip" id="kubeChip" type="button" title="Click to copy">export KUBECONFIG=…</button>
+</div>
+
+<div class="page">
+  <aside class="rail">
+    <div class="card">
+      <h2>Control <span class="label">terraform</span></h2>
+      <div class="group">
+        <span class="label">Lifecycle</span>
+        <div class="acts">
+          <button class="act primary" data-act="up"><span class="t">Build lab</span><span class="d">terraform apply: cluster, Cilium, Traefik, Argo CD</span></button>
+          <button class="act" data-act="plan"><span class="t">Preview changes</span><span class="d">terraform plan, nothing is modified</span></button>
+          <button class="act caution" data-act="reset" data-confirm="1"><span class="t">Rebuild from scratch</span><span class="d">destroy, then build again (about 6 min)</span></button>
+          <button class="act danger" data-act="down" data-confirm="1"><span class="t">Destroy lab</span><span class="d">terraform destroy, removes the cluster</span></button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="label">Power</span>
+        <div class="row2">
+          <button class="act" data-act="stop"><span class="t">Stop</span><span class="d">keep state</span></button>
+          <button class="act" data-act="start"><span class="t">Start</span><span class="d">resume nodes</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Git remote <span class="label">gitops</span></h2>
+      <div class="form">
+        <input id="repoInput" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/you/k8s-lab.git" aria-label="Public Git repository URL">
+        <div class="row2">
+          <button class="btn" id="saveRepo" type="button">Save URL</button>
+          <button class="btn" data-act="refresh-hello" type="button">Refresh app</button>
+        </div>
+        <div class="msg" id="repoMsg"></div>
+        <div class="hint">Argo CD pulls <span class="mono">charts/hello</span> from here. It must be a public https URL. Save it, then press Build lab to apply.</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="stats" id="stats"></div>
+
+    <section class="card">
+      <h2>Cluster topology <span class="label" id="topoLabel"></span></h2>
+      <div id="topology"></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Running</span><span><i style="background:var(--warn)"></i>Starting or not ready</span><span><i style="background:var(--bad)"></i>Failing</span><span><i style="background:var(--dim)"></i>Terminating</span></div>
+    </section>
+
+    <section class="card">
+      <h2>Platform <span class="label">who owns what</span></h2>
+      <div class="comps" id="comps"></div>
+    </section>
+
+    <div class="two">
+      <section class="card">
+        <h2>Argo CD <span class="label">applications</span></h2>
+        <div id="apps"></div>
+      </section>
+      <section class="card">
+        <h2>Endpoints <span class="label" id="portLabel"></span></h2>
+        <div id="endpoints"></div>
+      </section>
+    </div>
+
+    <section class="term" aria-live="polite">
+      <header>
+        <span id="jobPill" class="pill"><span class="dot"></span><span id="jobText">idle</span></span>
+        <b id="jobName">Console output</b><span id="jobTime"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="cancelBtn" type="button" hidden>Cancel</button>
+        <button class="btn" id="clearBtn" type="button">Clear</button>
+      </header>
+      <pre id="log"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Pods <span class="label" id="podCount"></span></h2>
+      <div class="tools">
+        <input id="podFilter" type="search" placeholder="Filter pods" aria-label="Filter pods">
+        <select id="nsFilter" aria-label="Namespace"><option value="">All namespaces</option></select>
+      </div>
+      <div class="tscroll"><table><thead><tr><th>Namespace</th><th>Pod</th><th>Node</th><th>Ready</th><th>Status</th><th>Restarts</th></tr></thead><tbody id="podRows"></tbody></table></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var TOKEN = document.querySelector('meta[name="console-token"]').content;
+  var S = null, evt = null, streamId = null, armed = null, armTimer = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); };
+
+  function post(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Console-Token': TOKEN }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); });
+  }
+
+  /* ---------- helpers ---------- */
+  function podClass(s) {
+    if (s === 'Running' || s === 'Completed' || s === 'Succeeded') return 'ok';
+    if (s === 'Terminating') return 'dim';
+    if (/Crash|Error|Fail|ImagePull|Backoff|OOM|Evicted/i.test(s)) return 'bad';
+    return 'warn';
+  }
+  function healthClass(h) { return h === 'Healthy' || h === 'Synced' ? 'ok' : (h === 'Unknown' || h === 'Progressing' || h === 'OutOfSync') ? 'warn' : 'bad'; }
+  function pill(cls, text, live) { return '<span class="pill ' + cls + (live ? ' live' : '') + '"><span class="dot"></span>' + esc(text) + '</span>'; }
+  function fmtTime(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
+
+  /* ---------- render ---------- */
+  function render() {
+    if (!S) return;
+    var cp = $('clusterPill'), word = { running: ['ok', 'Cluster running'], stopped: ['warn', 'Cluster stopped'], absent: ['bad', 'No cluster'], partial: ['warn', 'Partially running'], unknown: ['bad', 'Docker unreachable'] }[S.cluster] || ['bad', S.cluster];
+    cp.className = 'pill ' + word[0] + (S.cluster === 'running' ? ' live' : '');
+    $('clusterText').textContent = word[1];
+    $('kubeChip').textContent = 'export KUBECONFIG=' + S.kubeconfig;
+    $('portLabel').textContent = 'host port ' + S.ingressPort;
+    if (document.activeElement !== $('repoInput')) $('repoInput').value = S.repo || '';
+    renderStats(); renderTopology(); renderComps(); renderApps(); renderEndpoints(); renderPods(); renderButtons(); renderJobHeader();
+  }
+
+  function renderStats() {
+    var nodes = S.nodes, ready = nodes.filter(function (n) { return n.ready; }).length;
+    var pods = S.pods, good = pods.filter(function (p) { return podClass(p.status) === 'ok'; }).length;
+    var apps = S.apps, h = apps.filter(function (a) { return a.health === 'Healthy' && a.sync === 'Synced'; }).length;
+    var have = S.cluster === 'running';
+    function tile(cls, label, val, sub) { return '<div class="stat ' + cls + '"><span class="label">' + label + '</span><b>' + val + '</b><small>' + sub + '</small></div>'; }
+    $('stats').innerHTML =
+      tile(!have ? '' : ready === nodes.length && ready ? 'ok' : 'warn', 'Nodes ready', have ? ready + ' / ' + nodes.length : '–', 'kubernetes ' + (nodes[0] ? nodes[0].version : 'not running')) +
+      tile(!have ? '' : good === pods.length && good ? 'ok' : 'warn', 'Pods healthy', have ? good + ' / ' + pods.length : '–', 'across all namespaces') +
+      tile(!have ? '' : apps.length && h === apps.length ? 'ok' : 'warn', 'Apps synced', have ? h + ' / ' + apps.length : '–', 'managed by Argo CD') +
+      tile(!have ? '' : S.probes.argocd === 200 ? 'ok' : 'warn', 'Ingress', have ? (S.probes.argocd === 200 ? 'Up' : 'Down') : '–', 'Traefik on :' + S.ingressPort);
+  }
+
+  function renderTopology() {
+    var el = $('topology');
+    if (S.cluster !== 'running' || !S.nodes.length) {
+      var msg = { absent: ['No cluster yet', 'Build lab creates 1 control-plane and 3 workers, then installs Cilium, Traefik, metrics-server and Argo CD.'],
+                  stopped: ['Cluster is stopped', 'The nodes keep their state. Press Start to resume them.'] }[S.cluster] || ['Cluster not reachable', 'Check that Docker Desktop is running.'];
+      el.innerHTML = '<div class="empty"><b>' + msg[0] + '</b>' + msg[1] + '</div>';
+      $('topoLabel').textContent = '';
+      return;
+    }
+    $('topoLabel').textContent = S.nodes.length + ' nodes, ' + S.pods.length + ' pods';
+    el.innerHTML = '<div class="nodes">' + S.nodes.map(function (n) {
+      var pods = S.pods.filter(function (p) { return p.node === n.name; });
+      var t = n.top;
+      function meter(l, pct, txt) { return '<div class="meter"><span>' + l + '</span><span class="bar"><i style="width:' + Math.min(100, pct) + '%"></i></span><span>' + txt + '</span></div>'; }
+      return '<div class="node ' + (n.role === 'control-plane' ? 'cp' : '') + '"><header><div><h3>' + esc(n.name) + '</h3><div class="meta">' + esc(n.ip) + ' · ' + esc(n.version) + '</div></div>' +
+        '<span class="badge ' + (n.role === 'control-plane' ? 'cp' : 'w') + '">' + (n.role === 'control-plane' ? 'control-plane' : 'worker') + '</span></header>' +
+        '<div class="meters">' + (t ? meter('CPU', t.cpuPct, t.cpuM + 'm') + meter('MEM', t.memPct, t.memMi + 'Mi') : '<div class="hint">metrics warming up</div>') + '</div>' +
+        '<div class="dots">' + pods.map(function (p) { return '<span class="pd ' + podClass(p.status) + '" title="' + esc(p.ns + '/' + p.name + ' · ' + p.status) + '"></span>'; }).join('') + '</div>' +
+        '<div class="meta" style="margin-top:8px">' + pods.length + ' pods · ' + (n.ready ? 'Ready' : 'NotReady') + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  var COMPONENTS = [
+    { name: 'Cilium', ver: 'chart 1.20.4', ns: 'kube-system', match: /^cilium-(?!envoy)/, owner: 'tf' },
+    { name: 'Traefik', ver: 'chart 42.1.3', ns: 'traefik', match: /^traefik/, owner: 'tf' },
+    { name: 'metrics-server', ver: 'chart 3.13.1', ns: 'kube-system', match: /^metrics-server/, owner: 'tf' },
+    { name: 'Argo CD', ver: 'chart 10.11.6', ns: 'argocd', match: /./, owner: 'tf' },
+    { name: 'hello', ver: 'http-echo 0.2.3', ns: 'hello', match: /./, owner: 'git' }
+  ];
+  function renderComps() {
+    $('comps').innerHTML = COMPONENTS.map(function (c) {
+      var pods = S.pods.filter(function (p) { return p.ns === c.ns && c.match.test(p.name); });
+      var ok = pods.filter(function (p) { return podClass(p.status) === 'ok'; }).length;
+      var cls = !pods.length ? 'dim' : ok === pods.length ? 'ok' : 'warn';
+      return '<div class="comp ' + (c.owner === 'git' ? 'git' : '') + '"><b>' + c.name + '</b><span class="v">' + c.ver + ' · ' + (c.owner === 'git' ? 'Git' : 'Terraform') + '</span>' +
+        '<div class="n"><span>' + (pods.length ? ok + ' / ' + pods.length + ' pods' : 'not deployed') + '</span>' + pill(cls, cls === 'ok' ? 'ok' : cls === 'dim' ? 'none' : 'wait') + '</div></div>';
+    }).join('');
+  }
+
+  function renderApps() {
+    var el = $('apps');
+    if (S.cluster !== 'running') { el.innerHTML = '<div class="empty">Applications appear once the cluster is running.</div>'; return; }
+    if (!S.apps.length) { el.innerHTML = '<div class="empty">No applications yet.</div>'; return; }
+    el.innerHTML = S.apps.map(function (a) {
+      return '<div class="app"><div class="head"><b>' + esc(a.name) + '</b><span>' + pill(healthClass(a.sync), 'Sync ' + a.sync) + ' ' + pill(healthClass(a.health), a.health) + '</span></div>' +
+        '<div class="repo">' + esc(a.repo) + ' @ ' + esc(a.revision) + ' · ' + esc(a.path) + '</div>' +
+        (a.message ? '<div class="err">' + esc(a.message) + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function probeChip(code, okMsg) {
+    if (code === 200) return pill('ok', okMsg);
+    if (code === 404) return pill('warn', 'ingress up, no app behind it');
+    if (code === 0) return pill('bad', 'unreachable');
+    return pill('warn', 'HTTP ' + code);
+  }
+  function renderEndpoints() {
+    var p = S.ingressPort, up = S.cluster === 'running';
+    var hello = 'http://hello.localhost:' + p, argo = 'http://argocd.localtest.me:' + p;
+    $('endpoints').innerHTML =
+      '<div class="kv"><span class="label">hello (Git-owned)</span><a class="u" href="' + hello + '" target="_blank" rel="noopener">' + hello + '</a>' + (up ? probeChip(S.probes.hello, '200 OK') : pill('', 'cluster not running')) + '</div>' +
+      '<div class="kv"><span class="label">Argo CD UI</span><a class="u" href="' + argo + '" target="_blank" rel="noopener">' + argo + '</a>' + (up ? probeChip(S.probes.argocd, '200 OK') : pill('', 'cluster not running')) + '</div>' +
+      '<div class="kv"><span class="label">Argo CD admin login</span><div class="secret"><span class="mono">admin</span><span id="pwSlot"></span><button class="btn" id="pwBtn" type="button"' + (up ? '' : ' disabled') + '>Reveal password</button></div></div>';
+    $('pwBtn').onclick = function () {
+      post('/api/secret/argocd').then(function (r) {
+        $('pwSlot').innerHTML = r.body.password ? '<code>' + esc(r.body.password) + '</code>' : '<span class="hint">not available yet</span>';
+      });
+    };
+  }
+
+  var podSig = '';
+  function renderPods() {
+    var ns = $('nsFilter'), cur = ns.value, names = {};
+    S.pods.forEach(function (p) { names[p.ns] = 1; });
+    var sig = Object.keys(names).sort().join(',');
+    if (sig !== podSig) { podSig = sig; ns.innerHTML = '<option value="">All namespaces</option>' + Object.keys(names).sort().map(function (n) { return '<option>' + esc(n) + '</option>'; }).join(''); ns.value = cur; }
+    var q = $('podFilter').value.toLowerCase(), f = ns.value;
+    var rows = S.pods.filter(function (p) { return (!f || p.ns === f) && (!q || (p.ns + ' ' + p.name + ' ' + p.node + ' ' + p.status).toLowerCase().indexOf(q) >= 0); });
+    $('podCount').textContent = rows.length + ' of ' + S.pods.length;
+    $('podRows').innerHTML = rows.map(function (p) {
+      return '<tr><td class="m">' + esc(p.ns) + '</td><td class="m">' + esc(p.name) + '</td><td class="m">' + esc(p.node) + '</td><td class="m">' + esc(p.ready) + '</td><td><span class="sp ' + podClass(p.status) + '">' + esc(p.status) + '</span></td><td class="m">' + p.restarts + '</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="hint" style="padding:16px">No pods to show.</td></tr>';
+  }
+
+  function renderButtons() {
+    var busy = !!(S.job && S.job.running), c = S.cluster;
+    var allow = { up: true, plan: true, reset: true, down: c !== 'absent', stop: c === 'running', start: c === 'stopped' || c === 'partial', 'refresh-hello': c === 'running' };
+    document.querySelectorAll('[data-act]').forEach(function (b) { b.disabled = busy || !allow[b.dataset.act]; });
+    $('saveRepo').disabled = busy;
+    $('cancelBtn').hidden = !busy;
+  }
+
+  var jobStart = 0;
+  function renderJobHeader() {
+    var j = S.job;
+    if (!j) return;
+    var cls = j.running ? 'warn' : (j.rc === 0 ? 'ok' : 'bad');
+    $('jobPill').className = 'pill ' + cls + (j.running ? ' live' : '');
+    $('jobText').textContent = j.running ? 'running' : (j.rc === 0 ? 'succeeded' : 'failed');
+    $('jobName').textContent = j.label;
+    var end = j.ended || Date.now() / 1000;
+    $('jobTime').textContent = fmtTime(end - j.started);
+    if (streamId !== j.id) attach(j.id);
+  }
+
+  /* ---------- log stream ---------- */
+  function colorize(line) {
+    var cls = '';
+    if (/^\$ /.test(line)) cls = 'c';
+    else if (/^-- finished|Apply complete|Destroy complete|Creation complete|Destruction complete|^\s*ok /.test(line)) cls = 'g';
+    else if (/^-- failed|Error|ERROR|rror:/.test(line)) cls = 'r';
+    else if (/Still (creating|destroying)|WARN|Warning/.test(line)) cls = 'y';
+    else if (/Refreshing state|Reading\.\.\.|Read complete/.test(line)) cls = 'd';
+    return '<span class="' + cls + '">' + esc(line) + '</span>\n';
+  }
+  function attach(id) {
+    if (evt) evt.close();
+    streamId = id;
+    $('log').innerHTML = '';
+    evt = new EventSource('/api/job/' + id + '/stream');
+    var buf = [], timer = null;
+    function flush() {
+      timer = null;
+      var log = $('log'), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 40;
+      log.insertAdjacentHTML('beforeend', buf.join('')); buf = [];
+      while (log.childNodes.length > 4000) log.removeChild(log.firstChild);
+      if (stick) log.scrollTop = log.scrollHeight;
+    }
+    evt.onmessage = function (e) { buf.push(colorize(JSON.parse(e.data))); if (!timer) timer = setTimeout(flush, 80); };
+    evt.addEventListener('done', function () { evt.close(); flush(); poll(); });
+  }
+
+  /* ---------- polling ---------- */
+  function poll() {
+    fetch('/api/state').then(function (r) { return r.json(); }).then(function (s) { S = s; render(); })
+      .catch(function () { $('clusterText').textContent = 'console offline'; $('clusterPill').className = 'pill bad'; });
+  }
+  setInterval(poll, 4000);
+  setInterval(function () { if (S && S.job && S.job.running) { S.job.ended = null; $('jobTime').textContent = fmtTime(Date.now() / 1000 - S.job.started); } }, 1000);
+
+  /* ---------- actions ---------- */
+  function run(name, btn) {
+    post('/api/action', { name: name }).then(function (r) {
+      if (r.status >= 400) { $('repoMsg').className = 'msg bad'; $('repoMsg').textContent = r.body.error || 'Request failed'; return; }
+      setTimeout(poll, 300);
+    });
+  }
+  function disarm() { if (armed) { armed.classList.remove('armed'); armed.querySelector('.t').textContent = armed.dataset.label; armed = null; } clearTimeout(armTimer); }
+  document.querySelectorAll('[data-act]').forEach(function (b) {
+    var t = b.querySelector('.t'); if (t) b.dataset.label = t.textContent;
+    b.addEventListener('click', function () {
+      if (b.dataset.confirm) {
+        if (armed !== b) { disarm(); armed = b; b.classList.add('armed'); t.textContent = 'Click again to confirm'; armTimer = setTimeout(disarm, 4000); return; }
+        disarm();
+      }
+      run(b.dataset.act, b);
+    });
+  });
+  $('cancelBtn').onclick = function () { post('/api/action', { name: 'cancel' }); };
+  $('clearBtn').onclick = function () { $('log').innerHTML = ''; };
+  $('saveRepo').onclick = function () {
+    var m = $('repoMsg'); m.className = 'msg'; m.textContent = 'Saving…';
+    post('/api/action', { name: 'save-repo', url: $('repoInput').value }).then(function (r) {
+      m.className = 'msg ' + (r.body.ok ? 'ok' : 'bad');
+      m.textContent = r.body.ok ? 'Saved to terraform.tfvars. Press Build lab to apply.' : (r.body.error || 'Could not save.');
+      poll();
+    });
+  };
+  $('kubeChip').onclick = function () {
+    var text = $('kubeChip').textContent, chip = $('kubeChip');
+    var done = function () { chip.textContent = 'Copied'; setTimeout(render, 1200); };
+    try { navigator.clipboard.writeText(text).then(done, function () {}); } catch (e) {}
+  };
+  $('podFilter').oninput = function () { if (S) renderPods(); };
+  $('nsFilter').onchange = function () { if (S) renderPods(); };
+
+  poll();
+})();
+</script>
+</body>
+</html>

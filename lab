@@ -21,6 +21,7 @@ case "${target}" in
   ai-pull)        bash "${HERE}/scripts/ai.sh" pull "${2:-}" ;;
   ai-status)      bash "${HERE}/scripts/ai.sh" status ;;
   ai-logs)        bash "${HERE}/scripts/ai.sh" logs ;;
+  console)        python3 "${HERE}/console/server.py" ;;
   kubeconfig)     echo "export KUBECONFIG=${HOME}/.kube/k8s-lab.config" ;;
   versions)       bash -c "source '${HERE}/scripts/lib.sh'; print_versions" ;;
   help|-h|--help|*)
@@ -41,6 +42,7 @@ k8s-lab — run: ./lab <target>
   ai-pull [MODEL]  pull an Ollama model (default llama3.2:3b)
   ai-status        AI containers + models + GPU usage
   ai-logs          tail the AI stack logs
+  console          browser UI with buttons at http://localhost:28900
   versions         print installed tool versions
 EOF
     ;;

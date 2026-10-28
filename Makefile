@@ -3,7 +3,7 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install-tools up down stop start reset status kubeconfig dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
+.PHONY: console help install-tools up down stop start reset status kubeconfig dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -29,6 +29,9 @@ reset: ## down then up
 
 status: ## Show nodes (-o wide), all pods and Argo CD apps
 	@bash scripts/status.sh
+
+console: ## Open the browser console (buttons for build/destroy/status) at http://localhost:28900
+	@python3 console/server.py
 
 kubeconfig: ## Print the export command for the lab kubeconfig
 	@echo "export KUBECONFIG=$${HOME}/.kube/k8s-lab.config"

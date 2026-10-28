@@ -85,6 +85,16 @@ Example: `cd terraform && terraform apply -var worker_count=1 -var cni=kindnet`.
 With Cilium the cluster is created with `disable_default_cni = true` and
 `wait_for_ready = false` (nodes become Ready only after Cilium installs).
 
+## Browser console
+
+`make console` (or `./lab console`) starts a small local web UI at
+**http://localhost:28900**: live node and pod topology with CPU/memory, platform
+and Argo CD status, endpoint health, and buttons for Build, Preview (plan),
+Rebuild, Destroy, Stop and Start with a streaming log. A field saves your Git
+remote into `terraform/terraform.tfvars`. It binds to localhost only, runs a fixed
+whitelist of actions (no arbitrary commands), and rejects requests without its
+per-run token. Standard library only; run it inside WSL next to the tools.
+
 ## Design notes
 
 - **Cilium uses native routing.** In the default VXLAN tunnel mode, pods could
