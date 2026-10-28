@@ -114,12 +114,18 @@ resource "helm_release" "traefik" {
   timeout          = 300
 
   values = [yamlencode({
-    deployment   = { replicas = 1 }
+    deployment   = { replicas = 1, dnsPolicy = "ClusterFirstWithHostNet" }
     ingressClass = { enabled = true, isDefaultClass = true }
     service      = { spec = { type = "ClusterIP" } }
+    # hostNetwork instead of hostPort: Cilium replaces the portmap CNI plugin, so
+    # hostPort is not implemented on the node. Binding the node's ports directly
+    # works with either CNI; kind maps them to the host (extra_port_mappings).
+    hostNetwork = true
+    # A hostNetwork pod cannot surge: the old pod still holds the node's ports.
+    updateStrategy = { type = "RollingUpdate", rollingUpdate = { maxUnavailable = 1, maxSurge = 0 } }
     ports = {
-      web       = { hostPort = var.http_port }
-      websecure = { hostPort = var.https_port }
+      web       = { port = var.http_port, exposedPort = var.http_port }
+      websecure = { port = var.https_port, exposedPort = var.https_port }
     }
     nodeSelector = { "ingress-ready" = "true" }
     tolerations = [{
