@@ -163,7 +163,10 @@ resource "helm_release" "argocd" {
   timeout          = 600
 
   values = [yamlencode({
-    global  = { domain = var.argocd_host }
+    # The chart's default NetworkPolicies drop the kubelet's health probes under
+    # Cilium (host traffic is classified as "world"), leaving repo-server and the
+    # application controller NotReady. A local lab does not need them.
+    global  = { domain = var.argocd_host, networkPolicy = { create = false } }
     configs = { params = { "server.insecure" = true } }
     server = {
       ingress = {
