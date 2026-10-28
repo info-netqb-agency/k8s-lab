@@ -85,6 +85,19 @@ Example: `cd terraform && terraform apply -var worker_count=1 -var cni=kindnet`.
 With Cilium the cluster is created with `disable_default_cni = true` and
 `wait_for_ready = false` (nodes become Ready only after Cilium installs).
 
+## Design notes
+
+- **Cilium uses native routing.** In the default VXLAN tunnel mode, pods could
+  not reach other nodes' IPs (e.g. the API server) and metrics-server
+  crash-looped. kind nodes share one Docker bridge, so native routing with
+  `ipv4NativeRoutingCIDR=10.244.0.0/16` fits.
+- **Traefik runs with `hostNetwork`** on the control-plane node, binding 28080/28443
+  directly. Cilium replaces the portmap CNI plugin, so `hostPort` is not
+  implemented. It works with `cni = "kindnet"` too.
+- **Argo CD NetworkPolicies are off** (`global.networkPolicy.create=false`): under
+  Cilium the chart's policies dropped kubelet health probes.
+- Visual overview for presenting the lab: `docs/index.html` (open it in a browser).
+
 ## Verify
 
 ```bash
