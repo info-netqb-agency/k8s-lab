@@ -3,19 +3,19 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install-tools up down stop start reset status ingress metrics deploy-hello undeploy-hello dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
+.PHONY: help install-tools up down stop start reset status kubeconfig dashboard dashboard-token undeploy-dashboard ai-up ai-down ai-pull ai-status ai-logs versions
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-install-tools: ## Install kind/helm/kubectl if missing (user-local) + print versions
+install-tools: ## Install terraform/kind/helm/kubectl if missing (user-local) + print versions
 	@bash scripts/install-tools.sh
 
-up: ## Create the 4-node kind cluster from kind-config.yaml
+up: ## terraform init + apply: cluster, Cilium, Traefik, metrics-server, Argo CD, hello app
 	@bash scripts/up.sh
 
-down: ## Delete the kind cluster
+down: ## terraform destroy the whole lab
 	@bash scripts/down.sh
 
 stop: ## Stop the cluster's nodes without deleting it (state preserved)
@@ -24,25 +24,16 @@ stop: ## Stop the cluster's nodes without deleting it (state preserved)
 start: ## Start a previously stopped cluster and wait until Ready
 	@bash scripts/start.sh
 
-reset: ## Delete then recreate the cluster
+reset: ## down then up
 	@bash scripts/reset.sh
 
-status: ## Show nodes (-o wide) and all pods
+status: ## Show nodes (-o wide), all pods and Argo CD apps
 	@bash scripts/status.sh
 
-ingress: ## Install ingress-nginx and wait until ready
-	@bash scripts/ingress.sh
+kubeconfig: ## Print the export command for the lab kubeconfig
+	@echo "export KUBECONFIG=$${HOME}/.kube/k8s-lab.config"
 
-metrics: ## Install metrics-server (enables kubectl top + Headlamp usage graphs)
-	@bash scripts/metrics.sh
-
-deploy-hello: ## Deploy the hello Helm chart
-	@bash scripts/deploy-hello.sh
-
-undeploy-hello: ## Remove the hello Helm chart
-	@bash scripts/undeploy-hello.sh
-
-dashboard: ## Install the Headlamp web UI at http://dashboard.localhost + print a login token
+undashboard: ## Install the Headlamp web UI at http://dashboard.localhost + print a login token
 	@bash scripts/dashboard.sh
 
 dashboard-token: ## Print a fresh 24h Headlamp login token

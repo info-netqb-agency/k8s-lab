@@ -13,10 +13,6 @@ case "${target}" in
   start)          bash "${HERE}/scripts/start.sh" ;;
   reset)          bash "${HERE}/scripts/reset.sh" ;;
   status)         bash "${HERE}/scripts/status.sh" ;;
-  ingress)        bash "${HERE}/scripts/ingress.sh" ;;
-  metrics)        bash "${HERE}/scripts/metrics.sh" ;;
-  deploy-hello)   bash "${HERE}/scripts/deploy-hello.sh" ;;
-  undeploy-hello) bash "${HERE}/scripts/undeploy-hello.sh" ;;
   dashboard)          bash "${HERE}/scripts/dashboard.sh" ;;
   dashboard-token)    bash "${HERE}/scripts/dashboard-token.sh" ;;
   undeploy-dashboard) bash "${HERE}/scripts/undeploy-dashboard.sh" ;;
@@ -25,21 +21,18 @@ case "${target}" in
   ai-pull)        bash "${HERE}/scripts/ai.sh" pull "${2:-}" ;;
   ai-status)      bash "${HERE}/scripts/ai.sh" status ;;
   ai-logs)        bash "${HERE}/scripts/ai.sh" logs ;;
+  kubeconfig)     echo "export KUBECONFIG=${HOME}/.kube/k8s-lab.config" ;;
   versions)       bash -c "source '${HERE}/scripts/lib.sh'; print_versions" ;;
   help|-h|--help|*)
     cat <<'EOF'
 k8s-lab — run: ./lab <target>
-  install-tools    install kind/helm/kubectl if missing + print versions
-  up               create the 4-node kind cluster
-  down             delete the cluster
+  install-tools    install terraform/kind/helm/kubectl if missing + print versions
+  up               terraform apply: cluster + Cilium + Traefik + Argo CD + hello
+  down             terraform destroy the lab
   stop             stop the cluster's nodes without deleting (state kept)
   start            start a previously stopped cluster
   reset            down then up
-  status           nodes -o wide + pods -A
-  ingress          install ingress-nginx and wait until ready
-  metrics          install metrics-server (kubectl top + Headlamp graphs)
-  deploy-hello     deploy the hello Helm chart
-  undeploy-hello   remove the hello Helm chart
+  status           nodes -o wide + pods -A + Argo CD apps
   dashboard        install Headlamp web UI at dashboard.localhost + print token
   dashboard-token  print a fresh 24h Headlamp login token
   undeploy-dashboard  remove the Headlamp web UI

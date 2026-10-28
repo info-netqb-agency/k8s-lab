@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install the Headlamp web dashboard via Helm and expose it through ingress-nginx
-# at http://dashboard.localhost. Idempotent via `helm upgrade --install`.
+# Install the Headlamp web dashboard via Helm and expose it through Traefik
+# at http://dashboard.localhost:${HTTP_PORT}. Idempotent via `helm upgrade --install`.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_cluster
@@ -32,7 +32,7 @@ kubectl --context "${KUBE_CONTEXT}" -n "${DASHBOARD_NS}" create token headlamp-a
 cat <<EOF
 
 Open the dashboard:
-  Browser : http://${DASHBOARD_HOST}
+  Browser : http://${DASHBOARD_HOST}:${HTTP_PORT}
   Paste the token above at the login screen.
   Reprint a fresh token any time with: make dashboard-token   (or ./lab dashboard-token)
 EOF

@@ -11,23 +11,21 @@ export PATH="${HOME}/.local/bin:${PATH}"
 # Pinned versions — the single source of truth for the whole lab.
 # ----------------------------------------------------------------------------
 CLUSTER_NAME="k8s-lab"
+TERRAFORM_VERSION="1.17.0"
 KIND_VERSION="v0.32.0"
 HELM_VERSION="v4.2.2"
 KUBECTL_VERSION="v1.36.1"
-NODE_IMAGE="kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
-INGRESS_MANIFEST="manifests/ingress-nginx-kind.yaml"   # vendored, controller-v1.15.1
 KUBE_CONTEXT="kind-${CLUSTER_NAME}"
+# Terraform writes the cluster's kubeconfig here (stable path; see terraform/variables.tf).
+export KUBECONFIG="${KUBECONFIG_PATH:-${HOME}/.kube/k8s-lab.config}"
+# Host port Traefik is published on (terraform var http_port).
+HTTP_PORT="28080"
 
 # Headlamp web dashboard (installed via upstream Helm chart, exposed via ingress)
 HEADLAMP_REPO="https://kubernetes-sigs.github.io/headlamp/"
 HEADLAMP_CHART_VERSION="0.43.0"
 DASHBOARD_NS="headlamp"
 DASHBOARD_HOST="dashboard.localhost"
-
-# metrics-server (enables `kubectl top` + Headlamp CPU/memory graphs)
-METRICS_REPO="https://kubernetes-sigs.github.io/metrics-server/"
-METRICS_CHART_VERSION="3.13.1"   # app v0.8.1
-METRICS_NS="kube-system"
 
 # ----------------------------------------------------------------------------
 # Paths
@@ -109,10 +107,31 @@ ensure_helm() {
   ok "helm installed ($(helm version --short))"
 }
 
-ensure_tools() { ensure_bindir; ensure_kubectl; ensure_kind; ensure_helm; }
+ensure_terraform() {
+  if have terraform && terraform version 2>/dev/null | head -1 | grep -q "${TERRAFORM_VERSION}"; then
+    ok "terraform present ($(terraform version | head -1))"; return
+  fi
+  local os arch; read -r os arch <<<"$(os_arch)"
+  log "installing terraform ${TERRAFORM_VERSION} -> ${BIN_DIR}"
+  ensure_bindir
+  local tmp base zip; tmp="$(mktemp -d)"
+  base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+  zip="terraform_${TERRAFORM_VERSION}_${os}_${arch}.zip"
+  curl -fsSL -o "${tmp}/${zip}" "${base}/${zip}"
+  curl -fsSL -o "${tmp}/SHA256SUMS" "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+  (cd "${tmp}" && grep " ${zip}\$" SHA256SUMS | sha256sum -c -)
+  python3 -c "import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extract('terraform', sys.argv[2])" "${tmp}/${zip}" "${tmp}"
+  install -m 0755 "${tmp}/terraform" "${BIN_DIR}/terraform"
+  rm -rf "${tmp}"
+  ok "terraform installed ($(terraform version | head -1))"
+}
+
+ensure_tools() { ensure_bindir; ensure_terraform; ensure_kubectl; ensure_kind; ensure_helm; }
 
 print_versions() {
   log "tool versions"
+  printf '  terraform: %s
+' "$(terraform version 2>/dev/null | head -1 || echo MISSING)"
   printf '  kubectl : %s\n' "$(kubectl version --client 2>/dev/null | head -1)"
   printf '  kind    : %s\n' "$(kind --version 2>/dev/null || echo MISSING)"
   printf '  helm    : %s\n' "$(helm version --short 2>/dev/null || echo MISSING)"
