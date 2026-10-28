@@ -83,6 +83,13 @@ resource "helm_release" "cilium" {
     ipam                 = { mode = "kubernetes" }
     operator             = { replicas = 1 }
     kubeProxyReplacement = false
+    # kind nodes share one L2 Docker bridge, so use native routing instead of a
+    # VXLAN tunnel. The native-routing CIDR (kind's default pod CIDR) also makes
+    # Cilium masquerade pod -> node-IP traffic; in tunnel mode pods could not
+    # reach other nodes' IPs (e.g. the API server), which broke metrics-server.
+    routingMode           = "native"
+    autoDirectNodeRoutes  = true
+    ipv4NativeRoutingCIDR = "10.244.0.0/16"
   })]
 
   depends_on = [kind_cluster.this]
@@ -109,7 +116,7 @@ resource "helm_release" "traefik" {
   values = [yamlencode({
     deployment   = { replicas = 1 }
     ingressClass = { enabled = true, isDefaultClass = true }
-    service      = { type = "ClusterIP" }
+    service      = { spec = { type = "ClusterIP" } }
     ports = {
       web       = { hostPort = var.http_port }
       websecure = { hostPort = var.https_port }
