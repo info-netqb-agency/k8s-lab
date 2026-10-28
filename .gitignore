@@ -22,3 +22,15 @@ Thumbs.db
 *.log
 tmp/
 scratch/
+
+# --- Terraform ---------------------------------------------------------------
+# State and variable files (may hold secrets). .terraform.lock.hcl IS committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.tfplan

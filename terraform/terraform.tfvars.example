@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+hello_repo_url = "https://github.com/<you>/k8s-lab.git"
+# worker_count = 3
+# cni          = "kindnet"
