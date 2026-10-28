@@ -1,142 +1,130 @@
 # k8s-lab
 
-A portable, reproducible **4-node local Kubernetes cluster** (kind) defined entirely
-as code. Destroy and recreate it identically on any machine. Includes an
-ingress-nginx controller and a minimal Helm demo app reachable at
-`http://hello.localhost`.
+A portable, reproducible **local Kubernetes lab** (kind, 1 control-plane + 3
+workers) deployed entirely with **Terraform**, at $0.
 
-Everything is pinned to exact versions:
+- **Terraform owns the platform** (`terraform/`): kind cluster, Cilium CNI,
+  Traefik ingress, metrics-server, Argo CD, and one Argo CD `Application`.
+- **Git owns the workloads**: Argo CD deploys `charts/hello` from this repo.
+  Terraform does not touch it after the hand-off.
 
 | Component        | Pin                                                                 |
 | ---------------- | ------------------------------------------------------------------- |
-| kind (CLI)       | `v0.32.0`                                                            |
+| Terraform        | `1.17.0` (`>= 1.9`)                                                  |
+| tehcyx/kind      | provider `0.13.0`                                                    |
+| hashicorp/helm   | provider `~> 2.17` (3.x changed the block syntax)                    |
 | Kubernetes nodes | `kindest/node:v1.36.1` (digest-pinned)                              |
-| helm             | `v4.2.2`                                                             |
+| Cilium           | chart `1.20.4`                                                       |
+| Traefik          | chart `42.1.3` (Traefik v3.7.16)                                     |
+| metrics-server   | chart `3.13.1` (`--kubelet-insecure-tls`)                            |
+| Argo CD          | chart `10.11.6` (v3.5.6); argocd-apps chart `2.0.7`                  |
 | kubectl          | `v1.36.1`                                                            |
-| ingress-nginx    | `controller-v1.15.1` (vendored kind manifest)                       |
-| metrics-server   | chart `3.13.1` / app `v0.8.1` (optional usage metrics)              |
 | demo app         | `hashicorp/http-echo:0.2.3`                                          |
-| dashboard        | Headlamp chart `0.43.0` (optional web UI)                            |
+| dashboard (opt.) | Headlamp chart `0.43.0`                                              |
 | local AI (opt.)  | `ollama/ollama:0.31.1` + `open-webui:v0.10.2` (Docker + GPU)         |
 
 ---
 
 ## Prerequisites
 
-- **Windows + Docker Desktop with WSL2 integration**, Docker running.
-- Run everything **inside your WSL2 distro** (e.g. Ubuntu).
-- `curl` and `git` (present on a default Ubuntu WSL). `kubectl`, `kind` and
-  `helm` are installed automatically if missing — into `~/.local/bin`, **no sudo**.
-- Recommended: **≥ 4 GB** RAM allocated to Docker for 4 nodes (this repo was
-  built against 16 GB — check with `docker info --format '{{.MemTotal}}'`).
-- **cgroup v2 is required** — Kubernetes ≥ 1.35 refuses to start on cgroup v1.
-  Check with `docker info --format '{{.CgroupVersion}}'` (must print `2`).
-  If it prints `1`, create `%USERPROFILE%\.wslconfig` with:
-  ```ini
-  [wsl2]
-  kernelCommandLine = cgroup_no_v1=all
-  ```
-  then run `wsl --shutdown` and restart Docker Desktop. (A copy of this file
-  lives at `docs/wslconfig-cgroupv2.txt` in this repo.)
+- **Windows + Docker Desktop with WSL2 integration**, Docker running. Work
+  inside your **WSL2 distro**.
+- **RAM:** give Docker **>= 8 GB** (4 nodes + Cilium + Argo CD need ~5-6 GB;
+  check `docker info --format '{{.MemTotal}}'`).
+- **cgroup v2** (Kubernetes >= 1.35): `docker info --format '{{.CgroupVersion}}'`
+  must print `2`. Otherwise see `docs/wslconfig-cgroupv2.txt`.
+- `make install-tools` (or `./lab install-tools`) installs terraform, kubectl,
+  kind and helm into `~/.local/bin` - no sudo.
+- **A Git remote Argo CD can reach** (see below).
 
-> **`make` is optional.** If `make` isn't installed, use the bundled `./lab`
-> dispatcher — every `make <target>` below has an identical `./lab <target>`.
+> **`make` is optional.** Every `make <target>` has an identical `./lab <target>`.
 
----
+## Host ports
 
-## Bring everything up from zero
+Traefik is published on **28080 (HTTP) / 28443 (HTTPS)** instead of 80/443 so
+the lab never collides with other local services. Change them with
+`-var http_port=... -var https_port=...` (also update `HTTP_PORT` in
+`scripts/lib.sh` if you use the helper scripts).
 
-From the `k8s-lab/` directory, inside WSL2:
+| URL                                   | What                   |
+| ------------------------------------- | ---------------------- |
+| `http://hello.localhost:28080`        | demo app (via Argo CD) |
+| `http://argocd.localtest.me:28080`    | Argo CD UI             |
 
-```bash
-# 1. Install kind/helm/kubectl if missing, and print versions
-make install-tools          # or: ./lab install-tools
+`*.localhost` and `*.localtest.me` resolve to 127.0.0.1 - no hosts file edits.
 
-# 2. Create the 4-node cluster (1 control-plane + 3 workers)
-make up                     # or: ./lab up
+## The GitOps remote
 
-# 3. Install the ingress controller and wait until it's ready
-make ingress                # or: ./lab ingress
-
-# 4. Deploy the demo app
-make deploy-hello           # or: ./lab deploy-hello
-```
-
-One-liner:
+Argo CD runs *inside* the cluster, so it clones `charts/hello` over the network:
+push this repo to a **public** GitHub/GitLab remote and tell Terraform:
 
 ```bash
-make install-tools && make up && make ingress && make deploy-hello
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # git-ignored
+# edit hello_repo_url = "https://github.com/<you>/k8s-lab.git"
 ```
 
----
+Until `hello_repo_url` points at a reachable repo, the `hello` Application shows
+a sync error (everything else still works).
 
-## Verify each step
-
-**Tools installed:**
-```bash
-make versions               # kubectl / kind / helm / docker versions
-```
-
-**Cluster is up (4 nodes Ready):**
-```bash
-make status                 # kubectl get nodes -o wide + get pods -A
-```
-Expect 1 `control-plane` + 3 `<none>` (worker) nodes, all `Ready`.
-
-**Ingress controller ready:**
-```bash
-kubectl -n ingress-nginx get pods
-```
-The `ingress-nginx-controller-*` pod should be `Running` / `1/1`.
-
-**Demo app reachable** (uses an explicit Host header, so no DNS setup needed):
-```bash
-curl -H 'Host: hello.localhost' http://localhost
-# -> Hello from k8s-lab
-```
-
----
-
-## Reach the demo app from your browser
-
-Open **http://hello.localhost**
-
-`*.localhost` resolves to `127.0.0.1` automatically in Chrome/Edge/Firefox, and
-the cluster publishes port 80 from the control-plane node to your host via
-`extraPortMappings`, so it just works — no `hosts` file edits.
-
-If a tool on your machine doesn't resolve `*.localhost`, add to your hosts file:
-```
-127.0.0.1  hello.localhost
-```
-
----
-
-## Usage metrics (metrics-server)
-
-To get CPU/memory usage (`kubectl top` and the graphs in Headlamp):
+## Bring everything up
 
 ```bash
-make metrics                # or: ./lab metrics
+make install-tools   # once
+make up              # terraform init + apply (~5-8 min first run)
+export KUBECONFIG=~/.kube/k8s-lab.config   # printed by `make up`; also: make kubeconfig
+make status          # nodes, pods, Argo CD apps
+```
+
+`make down` runs `terraform destroy`; `make reset` is down + up. State lives in
+`terraform/terraform.tfstate` (git-ignored); the provider lock file
+`terraform/.terraform.lock.hcl` is committed.
+
+Knobs (`terraform/variables.tf`): `worker_count` (default 3), `cni`
+(`cilium` | `kindnet`), `http_port`, `https_port`, `hello_repo_url`.
+Example: `cd terraform && terraform apply -var worker_count=1 -var cni=kindnet`.
+With Cilium the cluster is created with `disable_default_cni = true` and
+`wait_for_ready = false` (nodes become Ready only after Cilium installs).
+
+## Verify
+
+```bash
+kubectl get nodes                      # 1 control-plane + 3 workers, Ready
+kubectl -n argocd get applications     # hello: Synced / Healthy
+curl http://hello.localhost:28080      # -> Hello from k8s-lab
+curl -I http://argocd.localtest.me:28080
 kubectl top nodes
-kubectl top pods -A
 ```
 
-kind's kubelets use self-signed serving certs, so metrics-server is configured
-with `--kubelet-insecure-tls` (see `metrics/values.yaml`) — appropriate for a
-local lab, not for production. First readings appear ~15–30s after install.
+Argo CD admin password:
+`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
+
+## CI (Azure DevOps)
+
+`azure-pipelines.yml` runs on a Microsoft-hosted `ubuntu-latest` agent: install
+Terraform -> init -> `fmt -check` -> validate -> apply -> smoke test (nodes
+Ready, Argo app Healthy, curl hello/argocd) -> destroy (`condition: always()`).
+No service connections or cloud resources, so it costs nothing. Set the pipeline
+variable `HELLO_REPO_URL` to a public clone URL of this repo.
+
+---
+
+## Usage metrics
+
+metrics-server is installed by Terraform, so `kubectl top nodes` / `kubectl top pods -A`
+work ~30 s after `make up`. It runs with `--kubelet-insecure-tls` (kind kubelets use
+self-signed certs) - fine for a lab, not for production.
 
 ## Web dashboard (Headlamp)
 
 You can administer the cluster from a browser instead of the CLI. `make dashboard`
 installs [Headlamp](https://headlamp.dev) via Helm and exposes it through the same
-ingress at **http://dashboard.localhost**:
+Traefik ingress at **http://dashboard.localhost:28080**:
 
 ```bash
 make dashboard              # or: ./lab dashboard
 ```
 
-It prints a 24-hour login token at the end. Open **http://dashboard.localhost**,
+It prints a 24-hour login token at the end. Open **http://dashboard.localhost:28080**,
 choose token auth, and paste it. Reprint a token any time:
 
 ```bash
@@ -187,12 +175,11 @@ single-user local lab — remove that env in `ai/docker-compose.yml` to enable a
 ## Tear it all down
 
 ```bash
-make undeploy-hello         # remove just the demo app
 make undeploy-dashboard     # remove the Headlamp dashboard
 make ai-down                # stop the local AI stack (models kept)
 make stop                   # stop the cluster but KEEP it (state preserved)
 make start                  # start a previously stopped cluster
-make down                   # delete the whole cluster
+make down                   # terraform destroy: delete the whole lab
 make reset                  # delete + recreate from scratch
 ```
 
@@ -206,7 +193,7 @@ entirely. Use `stop`/`start` to park the cluster when you're not using it.
 or Windows restarts — it comes up only when you run `make up` / `make start`.
 
 `make down` destroys everything cleanly; `make up` recreates it identically from
-`kind-config.yaml`. The installed CLIs in `~/.local/bin` are left in place.
+`terraform/`. The installed CLIs in `~/.local/bin` are left in place.
 
 ---
 
@@ -214,43 +201,30 @@ or Windows restarts — it comes up only when you run `make up` / `make start`.
 
 ```
 k8s-lab/
-├── kind-config.yaml            # 4-node cluster, pinned node image, ports 80/443
+├── terraform/                  # platform: kind, Cilium, Traefik, metrics-server, Argo CD
+│   ├── versions.tf  variables.tf  main.tf  outputs.tf
+│   ├── terraform.tfvars.example
+│   └── .terraform.lock.hcl     # committed
+├── azure-pipelines.yml         # CI: apply -> smoke test -> destroy (always)
 ├── Makefile                    # make targets (thin wrappers over scripts/)
 ├── lab                         # same targets without make (./lab <target>)
-├── manifests/
-│   └── ingress-nginx-kind.yaml # vendored ingress-nginx (controller-v1.15.1)
-├── dashboard/                  # Headlamp web UI (values + cluster-admin identity)
-│   ├── values.yaml
-│   └── admin.yaml
-├── metrics/
-│   └── values.yaml             # metrics-server (kind-friendly --kubelet-insecure-tls)
-├── ai/
-│   └── docker-compose.yml      # Ollama + Open WebUI on Docker with GPU (optional)
-├── scripts/                    # the real logic — single source of truth
-│   ├── lib.sh                  # pinned versions + shared helpers/installers
-│   ├── install-tools.sh
-│   ├── up.sh  down.sh  reset.sh  status.sh
-│   ├── ingress.sh  metrics.sh
-│   ├── deploy-hello.sh  undeploy-hello.sh
-│   ├── dashboard.sh  dashboard-token.sh  undeploy-dashboard.sh
-│   └── ai.sh                   # Ollama + Open WebUI stack control
-└── charts/hello/               # minimal Helm chart (Deployment/Service/Ingress)
+├── dashboard/                  # Headlamp web UI (optional)
+├── ai/docker-compose.yml       # Ollama + Open WebUI on Docker with GPU (optional)
+├── scripts/                    # up/down (Terraform), stop/start, dashboard, ai, helpers
+└── charts/hello/               # workload deployed by Argo CD, not by Terraform
 ```
 
-All targets are **idempotent** where it makes sense: `up` won't recreate an
-existing cluster, `ingress`/`deploy-hello` reconcile in place, and `down` is a
-no-op when nothing is running.
+All targets are **idempotent**: `up` reconciles in place and `down` is a no-op when
+nothing is running.
 
 ---
 
 ## Notes & troubleshooting
 
-- **Ports 80/443 already in use on the host?** Another service (or a second kind
-  cluster) is bound to them. Free them, or change the `hostPort`s in
-  `kind-config.yaml` and re-run `make reset`.
-- **`kind`/`helm` "command not found" in a new shell?** They live in
-  `~/.local/bin`. Add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc`.
-  (The scripts add it automatically at runtime.)
-- **Upgrading the ingress version:** re-vendor `manifests/ingress-nginx-kind.yaml`
-  from the desired `controller-vX.Y.Z` tag and commit it — that keeps the
-  cluster reproducible regardless of upstream changes.
+- **Port 28080/28443 in use?** Pick others: `terraform apply -var http_port=... -var https_port=...`.
+- **`hello` Application shows ComparisonError?** `hello_repo_url` is still the
+  placeholder or the repo is private/unpushed. Set it in `terraform/terraform.tfvars`
+  and `make up` again.
+- **`terraform`/`kind`/`helm` "command not found"?** They live in `~/.local/bin`:
+  `export PATH="$HOME/.local/bin:$PATH"`.
+- **Nodes NotReady right after apply?** Cilium is still rolling out; give it a minute.
