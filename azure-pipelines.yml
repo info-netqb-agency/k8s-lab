@@ -1,0 +1,101 @@
+# k8s-lab CI: build the whole lab with Terraform on a throwaway kind cluster,
+# smoke-test it, destroy it. Runs on a Microsoft-hosted ubuntu-latest agent
+# (Docker preinstalled), no service connections, no cloud resources -> $0
+# (within the free parallel-job grant).
+#
+# Required pipeline variable:
+#   HELLO_REPO_URL  public HTTPS clone URL Argo CD can reach from inside the
+#                   cluster (e.g. https://github.com/<you>/k8s-lab.git). Azure
+#                   Repos URLs need credentials, so mirror the repo to a public
+#                   GitHub/GitLab remote for this lab.
+trigger:
+  branches:
+    include: [main, master]
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  TF_VERSION: "1.17.0"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  HTTP_PORT: "28080"
+  KUBECONFIG: $(Pipeline.Workspace)/k8s-lab.kubeconfig
+  # Maps to Terraform vars without a tfvars file.
+  TF_VAR_kubeconfig_path: $(Pipeline.Workspace)/k8s-lab.kubeconfig
+  TF_VAR_hello_repo_url: $(HELLO_REPO_URL)
+  TF_VAR_hello_repo_revision: $(Build.SourceBranchName)
+
+steps:
+  - checkout: self
+
+  - bash: |
+      set -euo pipefail
+      curl -fsSLo /tmp/tf.zip "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+      curl -fsSLo /tmp/SHA256SUMS "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_SHA256SUMS"
+      (cd /tmp && grep linux_amd64.zip SHA256SUMS | sed 's#terraform_.*zip#tf.zip#' | sha256sum -c -)
+      sudo unzip -o /tmp/tf.zip terraform -d /usr/local/bin
+      terraform version
+    displayName: Install Terraform
+
+  - bash: |
+      set -euo pipefail
+      if [ -z "${HELLO_REPO_URL:-}" ]; then
+        echo "##vso[task.logissue type=error]Set the HELLO_REPO_URL pipeline variable (public clone URL of this repo)."
+        exit 1
+      fi
+    displayName: Check pipeline variables
+    env:
+      HELLO_REPO_URL: $(HELLO_REPO_URL)
+
+  - bash: terraform init
+    displayName: terraform init
+    workingDirectory: terraform
+
+  - bash: terraform fmt -check -recursive
+    displayName: terraform fmt -check
+    workingDirectory: terraform
+
+  - bash: terraform validate
+    displayName: terraform validate
+    workingDirectory: terraform
+
+  - bash: terraform apply -auto-approve
+    displayName: terraform apply
+    workingDirectory: terraform
+
+  - bash: |
+      set -euo pipefail
+      echo "--- nodes Ready"
+      kubectl wait --for=condition=Ready nodes --all --timeout=300s
+      kubectl get nodes -o wide
+
+      echo "--- Argo CD application hello Healthy + Synced"
+      for i in $(seq 1 60); do
+        health=$(kubectl -n argocd get application hello -o jsonpath='{.status.health.status}' 2>/dev/null || true)
+        sync=$(kubectl -n argocd get application hello -o jsonpath='{.status.sync.status}' 2>/dev/null || true)
+        echo "health=${health:-?} sync=${sync:-?}"
+        [ "$health" = "Healthy" ] && [ "$sync" = "Synced" ] && break
+        sleep 5
+      done
+      [ "$health" = "Healthy" ] && [ "$sync" = "Synced" ]
+
+      echo "--- curl hello.localhost"
+      for i in $(seq 1 30); do
+        out=$(curl -fsS -H 'Host: hello.localhost' "http://127.0.0.1:${HTTP_PORT}/" 2>/dev/null) && break
+        sleep 3
+      done
+      echo "$out"
+      echo "$out" | grep -q "Hello from k8s-lab"
+
+      echo "--- curl argocd.localtest.me"
+      curl -fsS -o /dev/null -w 'argocd HTTP %{http_code}\n' -H 'Host: argocd.localtest.me' "http://127.0.0.1:${HTTP_PORT}/"
+    displayName: Smoke test
+
+  # Always tear down, even if an earlier step failed or the run was cancelled.
+  - bash: terraform destroy -auto-approve
+    displayName: terraform destroy
+    workingDirectory: terraform
+    condition: always()
