@@ -1,5 +1,5 @@
 # Headlamp values for k8s-lab — a web UI reachable at http://dashboard.localhost
-# via the same ingress-nginx controller that serves the hello demo.
+# via the same Traefik ingress that serves the hello demo.
 replicaCount: 1
 
 service:
@@ -8,7 +8,7 @@ service:
 
 ingress:
   enabled: true
-  ingressClassName: nginx
+  ingressClassName: traefik
   hosts:
     - host: dashboard.localhost
       paths:
