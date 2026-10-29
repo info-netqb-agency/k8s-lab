@@ -90,6 +90,14 @@ resource "helm_release" "cilium" {
     routingMode           = "native"
     autoDirectNodeRoutes  = true
     ipv4NativeRoutingCIDR = "10.244.0.0/16"
+    # The WSL2 kernel has no xt_socket module, so the iptables rule Cilium needs
+    # for its L7 proxy cannot be installed. The whole rule reconciliation then
+    # fails, including the pod masquerade rule, and pods lose internet access
+    # (Argo CD could not reach GitHub). No L7 policy is used here, so turn it off.
+    l7Proxy  = false
+    dnsProxy = { enableTransparentMode = false }
+    # eBPF masquerading does not rely on the failing iptables reconciliation.
+    bpf = { masquerade = true }
   })]
 
   depends_on = [kind_cluster.this]
@@ -172,8 +180,20 @@ resource "helm_release" "argocd" {
     # The chart's default NetworkPolicies drop the kubelet's health probes under
     # Cilium (host traffic is classified as "world"), leaving repo-server and the
     # application controller NotReady. A local lab does not need them.
-    global  = { domain = var.argocd_host, networkPolicy = { create = false } }
-    configs = { params = { "server.insecure" = true } }
+    global = { domain = var.argocd_host, networkPolicy = { create = false } }
+    configs = {
+      params = { "server.insecure" = true }
+      # Traefik runs on the host network, so Ingresses never get a load-balancer
+      # address and Argo CD would show them as Progressing forever.
+      cm = {
+        "resource.customizations.health.networking.k8s.io_Ingress" = <<-EOT
+          hs = {}
+          hs.status = "Healthy"
+          hs.message = "Served by Traefik (host network, no load-balancer address)"
+          return hs
+        EOT
+      }
+    }
     server = {
       ingress = {
         enabled          = true
